@@ -50,10 +50,12 @@ def marker_publish(segments, num_segments, points, frame_id):
         marker.type = Marker.POINTS
         marker.action = Marker.ADD
 
-        marker.scale.x = 0.05
-        marker.scale.y = 0.05
+        # 點的大小
+        marker.scale.x = 0.03
+        marker.scale.y = 0.03
         marker.scale.z = 0.05 # 不重要
 
+        # 點的顏色
         r, g, b = gen_hsv_colors(i, num_segments)
         marker.color.r = r
         marker.color.g = g
