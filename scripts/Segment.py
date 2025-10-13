@@ -18,7 +18,7 @@ def segment(xy: np.ndarray) -> Tuple[List[List[int]], List[int], int]:
     :rtype: tuple[list[list[int]], list[int], int]
     """
     # 閾值設定，與 Matlab 版本相同
-    threshold = 0.1
+    threshold = 0.3
 
     # 找出所有不是 (0,0) 的有效點的 0-based 索引
     # np.any(xy != 0, axis=1) 會回傳一個布林陣列，標示哪些行不全是零
