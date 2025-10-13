@@ -70,7 +70,8 @@ def marker_publish(segments, num_segments, points, frame_id):
         marker_array.markers.append(marker)
 
         if seg:
-            coords = points[seg[0]] # 取片段的第一個點
+            seg_points = points[seg]
+            coords = np.mean(seg_points, axis=0)
 
             text_marker = Marker()
             text_marker.header.frame_id = frame_id
