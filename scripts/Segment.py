@@ -17,7 +17,7 @@ def segment(xy: np.ndarray) -> Tuple[List[List[int]], List[int], int]:
         - num_segments (int): 總片段數量\n
     :rtype: tuple[list[list[int]], list[int], int]
     """
-    # 閾值設定，與 Matlab 版本相同
+    # 定義距離閾值 (單位：公尺)
     threshold = 0.3
 
     # 找出所有不是 (0,0) 的有效點的 0-based 索引
