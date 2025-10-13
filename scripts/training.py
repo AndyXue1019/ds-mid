@@ -25,24 +25,11 @@ def gen_hsv_colors(i, total):
     return r, g, b
 
 
-def scan_callback(scan: LaserScan):
-    global marker_pub
-
-    ranges = np.array(scan.ranges)
-    angles = scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
-
-    # 將極座標轉換為直角座標
-    x = ranges * np.cos(angles)
-    y = ranges * np.sin(angles)
-    points = np.vstack((x, y)).T # N x 2 array
-
-    # 呼叫分割函數
-    segments, _, num_segments = segment(points)
-
+def marker_publish(segments, num_segments, points, frame_id):
     marker_array = MarkerArray()
 
     clear_marker = Marker()
-    clear_marker.header.frame_id = scan.header.frame_id
+    clear_marker.header.frame_id = frame_id
     clear_marker.header.stamp = rospy.Time.now()
     clear_marker.ns = 'ds_mid'
     clear_marker.id = 0
@@ -54,7 +41,7 @@ def scan_callback(scan: LaserScan):
 
     for i, seg in enumerate(segments):
         marker = Marker()
-        marker.header.frame_id = scan.header.frame_id
+        marker.header.frame_id = frame_id
         marker.header.stamp = rospy.Time.now()
 
         marker.ns = 'laser_segments'
@@ -80,10 +67,53 @@ def scan_callback(scan: LaserScan):
 
         marker_array.markers.append(marker)
 
+        if seg:
+            coords = points[seg[0]] # 取片段的第一個點
+
+            text_marker = Marker()
+            text_marker.header.frame_id = frame_id
+            text_marker.header.stamp = rospy.Time.now()
+
+            text_marker.ns = 'segment_labels'
+            text_marker.id = i + 1
+
+            text_marker.type = Marker.TEXT_VIEW_FACING
+            text_marker.action = Marker.ADD
+
+            text_marker.pose.position.x = coords[0]
+            text_marker.pose.position.y = coords[1]
+            text_marker.pose.position.z = 0.2 # 文字稍微抬高
+            text_marker.pose.orientation.w = 1.0 # 無旋轉
+
+            text_marker.text = str(i) # 文字內容
+            text_marker.scale.z = 0.2 # 文字高度
+
+            text_marker.color.r = 1.0
+            text_marker.color.g = 1.0
+            text_marker.color.b = 1.0
+            text_marker.color.a = 1.0 # 不透明
+
+            marker_array.markers.append(text_marker)
+
         if marker_array.markers:
             marker_pub.publish(marker_array)
 
-        rospy.loginfo(f'Found {num_segments} segments.')
+
+def scan_callback(scan: LaserScan):
+    ranges = np.array(scan.ranges)
+    angles = scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
+
+    # 將極座標轉換為直角座標
+    x = ranges * np.cos(angles)
+    y = ranges * np.sin(angles)
+    points = np.vstack((x, y)).T # N x 2 array
+
+    # 呼叫分割函數
+    segments, _, num_segments = segment(points)
+    rospy.loginfo(f'Found {num_segments} segments.')
+
+    # rviz標記
+    marker_publish(segments, num_segments, points, scan.header.frame_id)
 
 
 def main():
