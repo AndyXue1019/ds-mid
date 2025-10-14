@@ -164,12 +164,12 @@ def scan_callback(scan: LaserScan):
             # 如果偵測結果已匹配，或者標籤不符，則跳過
             if matched_detections[det_idx] or det['label'] != tracker_data['label']:
                 continue
-            
+
             dist = np.linalg.norm(predicted_pos - det['center'])
             if dist < association_dist_thresh and dist < best_dist:
                 best_dist = dist
                 best_det_idx = det_idx
-        
+
         if best_det_idx != -1:
             tracker_data['kf'].update(detections[best_det_idx]['center'])
             matched_detections[best_det_idx] = True
@@ -195,7 +195,7 @@ def scan_callback(scan: LaserScan):
                 'unmatched_frames': 0,
                 'id': next_tracker_id,
                 'status': 'tentative',
-                'hits': 1
+                'hits': 1,
             }
             next_tracker_id += 1
 
@@ -204,10 +204,16 @@ def scan_callback(scan: LaserScan):
     max_unmatched_frames = 10
     for tracker_id, tracker_data in trackers.items():
         # confirmed 的追蹤器如果失配太久，就刪除
-        if tracker_data['status'] == 'confirmed' and tracker_data['unmatched_frames'] > max_unmatched_frames:
+        if (
+            tracker_data['status'] == 'confirmed'
+            and tracker_data['unmatched_frames'] > max_unmatched_frames
+        ):
             ids_to_delete.append(tracker_id)
         # tentative 的追蹤器只要失配一次，就刪除
-        elif tracker_data['status'] == 'tentative' and tracker_data['unmatched_frames'] > 0:
+        elif (
+            tracker_data['status'] == 'tentative'
+            and tracker_data['unmatched_frames'] > 0
+        ):
             ids_to_delete.append(tracker_id)
 
     for tracker_id in ids_to_delete:
