@@ -6,15 +6,15 @@ from typing import List
 import numpy as np
 import rosbag
 from sensor_msgs.msg import LaserScan
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from sklearn.model_selection import StratifiedKFold
+from sklearn.preprocessing import StandardScaler
 
 from utils.Adaboost import adaboost_predict, adaboost_train
 from utils.Segment import extract_features, merge_segments, segment
 
-data_train = []
-label_train = []
-data_test = []
-label_test = []
+data_full = []
+label_full = []
 
 
 def load_labels(data_file):
@@ -52,12 +52,8 @@ def label_segments(t, num_segments, data_file):
     return PN
 
 
-def data_label_prepare(bag_file, label_file, mode='train'):
-    global data_train, label_train, data_test, label_test
-
-    mode = mode.lower()
-    if mode not in ['train', 'test']:
-        raise ValueError("mode 必須是 'train' 或 'test'")
+def data_label_prepare(bag_file, label_file):
+    global data_full, label_full
 
     scan_msgs = load_bag_data(bag_file)
 
@@ -82,59 +78,74 @@ def data_label_prepare(bag_file, label_file, mode='train'):
 
             features = extract_features(segment_points)
 
-            if mode == 'train':
-                data_train.append(features)
-                label_train.append(PN[i])
-            else:
-                data_test.append(features)
-                label_test.append(PN[i])
+            data_full.append(features)
+            label_full.append(PN[i])
 
 
 def main():
-    global data_train, label_train, data_test, label_test
+    global data_full, label_full
     bag_file = './data/data_{}.bag'
     label_file = './data/data_{}_label.csv'
 
     # 準備訓練資料 (可自訂)
-    print('準備訓練資料...')
-    data_label_prepare(bag_file.format('1'), label_file.format('1'), mode='train')
-    print('準備測試資料...')
-    data_label_prepare(bag_file.format('2'), label_file.format('2'), mode='test')
-    data_label_prepare(bag_file.format('3'), label_file.format('3'), mode='test')
+    print('準備資料...')
+    for i in range(1, 4):
+        print(f'處理第 {i} 筆資料...')
+        data_label_prepare(bag_file.format(i), label_file.format(i))
 
     # 將訓練和測試數據轉換為 NumPy 陣列
-    data_train = np.array(data_train)
-    label_train = np.array(label_train)
-    data_test = np.array(data_test)
-    label_test = np.array(label_test)
-    if data_train.size == 0:
+    data_full = np.array(data_full)
+    label_full = np.array(label_full)
+
+    if data_full.size == 0:
         raise ValueError('訓練資料集為空，請檢查資料準備過程。')
-    elif data_test.size == 0:
-        raise ValueError('測試資料集為空，請檢查資料準備過程。')
-    print(f'訓練資料集大小: {data_train.shape}, 測試資料集大小: {data_test.shape}')
+    print(f'總訓練資料集大小: {data_full.shape}')
 
-    # 儲存資料集為 .npz 檔案
-    # np.savez('train_data.npz', data=data_train, label=label_train)
-    # np.savez('test_data.npz', data=data_test, label=label_test)
+    n_splits = 5
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
 
-    stumps, alphas = adaboost_train(data_train, label_train, T=50)
+    accuracies = []
+    total_cm = np.zeros((3, 3), dtype=int)
+    class_labels = ['B', 'C', 'O'] # Box, Circle, Other
 
-    # 儲存訓練好的模型
+    for fold, (train_index, test_index) in enumerate(skf.split(data_full, label_full)):
+        print(f'\n--- 第 {fold + 1}/{n_splits} 摺 ---')
+        data_train, data_test = data_full[train_index], data_full[test_index]
+        label_train, label_test = label_full[train_index], label_full[test_index]
+
+        # 特徵標準化
+        scaler = StandardScaler()
+        data_train = scaler.fit_transform(data_train)
+        data_test = scaler.transform(data_test)
+
+        stumps, alphas = adaboost_train(data_train, label_train, T=50)
+
+        test_pred = adaboost_predict(data_test, stumps, alphas)
+
+        cm = confusion_matrix(label_test, test_pred, labels=class_labels)
+        total_cm += cm
+
+        acc = accuracy_score(label_test, test_pred)
+        accuracies.append(acc)
+
+        print(cm)
+        print(f'準確率: {acc * 100:.4f}%')
+
+    print('\n=== 整體結果 ===')
+    print(total_cm)
+    mean_acc = np.mean(accuracies)
+    std_acc = np.std(accuracies)
+    print(f'平均準確率: {mean_acc * 100:.4f}% (+/- {std_acc * 100:.4f}%)')
+    
+    scaler = StandardScaler()
+    data_full_scaled = scaler.fit_transform(data_full)
+
+    stumps, alphas = adaboost_train(data_full_scaled, label_full, T=50)
+
+    # 儲存訓練好的模型和標準化參數
     np.savez('./model/adaboost_model.npz', stumps=stumps, alphas=alphas)
-    print('模型已儲存至 ./model/adaboost_model.npz')
-
-    train_pred = adaboost_predict(data_train, stumps, alphas)
-    test_pred = adaboost_predict(data_test, stumps, alphas)
-
-    print('--- 訓練資料集 ---')
-    cm_train = confusion_matrix(label_train, train_pred, labels=['O', 'B', 'C'])
-    print(cm_train)
-    print(f'準確率: {accuracy_score(label_train, train_pred) * 100:.4f}%')
-
-    print('--- 測試資料集 ---')
-    cm_test = confusion_matrix(label_test, test_pred, labels=['O', 'B', 'C'])
-    print(cm_test)
-    print(f'準確率: {accuracy_score(label_test, test_pred) * 100:.4f}%')
+    np.savez('./model/scaler.npz', mean=scaler.mean_, scale=scaler.scale_)
+    print('模型與標準化參數已儲存至 ./model/ 資料夾。')
 
 
 if __name__ == '__main__':
