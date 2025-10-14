@@ -187,13 +187,12 @@ def fit_circle(points: np.ndarray) -> Tuple[Tuple[float, float], float]:
     # 解 Ac = b
     c, _, _, _ = np.linalg.lstsq(A, b, rcond=None)
     # 處理擬合失敗的情況
-    if c[2] + c[0]**2 + c[1]**2 < 0:
+    if c[2] + c[0] ** 2 + c[1] ** 2 < 0:
         return (c[0], c[1]), np.inf
-    return (c[0], c[1]), np.sqrt(c[2] + c[0]**2 + c[1]**2)
+    return (c[0], c[1]), np.sqrt(c[2] + c[0] ** 2 + c[1] ** 2)
 
 
 def extract_features(points) -> list:
-
     # 特徵 1: 點的數量
     num_points = len(points)
 
@@ -208,23 +207,39 @@ def extract_features(points) -> list:
     pca.fit(points)
     linearity_err = pca.explained_variance_ratio_[1]
 
-    # 特徵 4、5: 圓度 (擬合圓後的誤差) 、擬合圓的半徑
+    # 特徵 4: 長寬比 (Aspect Ratio)
+    # 判斷物體的形狀，圓形或正方形接近1，長條形則遠大於1。
+    # 加上一個極小值避免除以零的錯誤。
+    var = pca.explained_variance_
+    if var[1] < 1e-6:
+        aspect_ratio = 1e6  # 如果寬度趨近於零，視為一個極大的長寬比 (類似一條線)
+    else:
+        aspect_ratio = np.sqrt(var[0]) / np.sqrt(var[1])
+
+    # 特徵 5: 點密度 (Point Density)
+    # 反映點的分佈密集程度。
+    if width < 1e-6:
+        point_density = 1e6  # 如果寬度極小，視為密度極大
+    else:
+        point_density = num_points / width
+
+    # 特徵 6、7: 圓度 (擬合圓後的誤差) 、擬合圓的半徑
     # 計算所有點到擬合圓心的距離，然後取其標準差。
     # 對於圓弧，這個標準差應該很小。
     center, radius = fit_circle(points)
-    if np.isinf(radius): # 如果擬合失敗
-        circularity_err = 1.0 # 給一個較大的誤差值
-        radius = 100.0 # 給一個較大的半徑值
+    if np.isinf(radius):  # 如果擬合失敗
+        circularity_err = 1.0  # 給一個較大的誤差值
+        radius = 100.0  # 給一個較大的半徑值
     else:
         distances_to_center = np.linalg.norm(points - center, axis=1)
         circularity_err = np.std(distances_to_center)
 
-    # 特徵 6: 點到質心的距離標準差
+    # 特徵 8: 點到質心的距離標準差
     centroid = np.mean(points, axis=0)
     distances_to_centroid = np.linalg.norm(points - centroid, axis=1)
     std_dev_dist = np.std(distances_to_centroid)
 
-    # 特徵 7: 曲率估計
+    # 特徵 9: 曲率估計
     # 擬合二次多項式 y = ax^2 + bx + c 來估計曲率
     # 為了旋轉不變性，我們先將點對齊到主軸
     points_transformed = pca.transform(points)
@@ -238,25 +253,34 @@ def extract_features(points) -> list:
         poly_coeffs = np.polyfit(x_transformed, y_transformed, 2)
         curvature = np.abs(2 * poly_coeffs[0])
 
-    # 特徵 8: 角度變化的標準差
+    # 特徵 10: 角度變化的標準差
     angles = []
     if num_points > 2:
         for i in range(num_points - 2):
             p1 = points[i]
-            p2 = points[i+1]
-            p3 = points[i+2]
+            p2 = points[i + 1]
+            p3 = points[i + 2]
             v1 = p1 - p2
             v2 = p3 - p2
             # 計算向量夾角
             cosine_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
             angle = np.arccos(np.clip(cosine_angle, -1.0, 1.0))
             angles.append(angle)
-    
+
     if angles:
         std_angle = np.std(angles)
     else:
         std_angle = 0.0
 
-
-    return [num_points, width, linearity_err, circularity_err, std_dev_dist, curvature, radius, std_angle]
-
+    return [
+        num_points,
+        width,
+        linearity_err,
+        aspect_ratio,
+        point_density,
+        circularity_err,
+        std_dev_dist,
+        curvature,
+        radius,
+        std_angle,
+    ]
