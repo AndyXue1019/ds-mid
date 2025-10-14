@@ -92,12 +92,10 @@ def marker_publish(tracked_objects, frame_id):
         text_marker.pose.position.x = x
         text_marker.pose.position.y = y
         text_marker.pose.position.z = 0.3  # 文字在物體上方
-        text_marker.text = ('Ball\n' if label == 'C' else 'Box\n') + f'Score:{score:.2f}'
-        # 文字大小
-        text_marker.scale.x = 0.05
-        text_marker.scale.y = 0.05
-        
-        text_marker.scale.z = 0.2
+        text_marker.text = (
+            'Ball\n' if label == 'C' else 'Box\n'
+        ) + f'Score:{score:.2f}'
+        text_marker.scale.z = 0.15  # 文字大小
         text_marker.color.r = 1.0
         text_marker.color.g = 1.0
         text_marker.color.b = 1.0
@@ -243,7 +241,7 @@ def scan_callback(scan: LaserScan):
         }
         # (object_x, object_y, probability, object_index)
         rospy.loginfo(
-            f'Object_{tracker_id}: '
+            f'{"Ball " if tracker_data["label"] == "C" else "Box  "} '
             f'x={tracker_data["kf"].x[0, 0]:.2f}, '
             f'y={tracker_data["kf"].x[1, 0]:.2f}, '
             f'score={score:.2f}, '
