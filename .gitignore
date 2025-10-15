@@ -3,3 +3,4 @@ ruff.toml
 .mypy_cache/
 .vscode/
 test/
+build/

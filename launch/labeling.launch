@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+  <node pkg="ds_mid" type="labeling.py" name="labeling"  output="screen">
+  </node>
+  <node pkg="rviz" type="rviz" name="rviz" required="true"
+        args="-d $(find ds_mid)/rviz/labeling.rviz"/>
+</launch>
