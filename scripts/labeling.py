@@ -34,7 +34,7 @@ def marker_publish(segments, num_segments, points, frame_id):
     clear_marker.action = Marker.DELETEALL
     marker_array.markers.append(clear_marker)
     marker_pub.publish(marker_array)
-    
+
     marker_array = MarkerArray()
 
     for i, seg in enumerate(segments):
@@ -61,7 +61,7 @@ def marker_publish(segments, num_segments, points, frame_id):
         marker.color.a = 1.0 # 不透明
 
         marker.points = [
-            Point(points[idx, 0], points[idx, 1], 0) 
+            Point(points[idx, 0], points[idx, 1], 0)
             for idx in seg
         ]
 
@@ -111,7 +111,7 @@ def scan_callback(scan: LaserScan):
     points = np.vstack((x, y)).T # N x 2 array
 
     # 過濾
-    keep_indices = filter_outliers(points, radius=0.15, min_neighbors=2)
+    keep_indices = filter_outliers(points, radius=0.15, min_neighbors=5)
     filtered_points = points[keep_indices]
 
     # 呼叫分割函數
