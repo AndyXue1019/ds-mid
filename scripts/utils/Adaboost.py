@@ -21,10 +21,9 @@ def adaboost_train(
 
         # 遍歷每個特徵以尋找最佳分割
         for feature_i in range(num_features):
-            
             # 1. 根據當前特徵值對樣本索引進行排序
             sorted_indices = np.argsort(data_train[:, feature_i])
-            
+
             # 根據排序後的索引重新排列權重和標籤
             sorted_weights = D[sorted_indices]
             sorted_labels_int = class_map[sorted_indices]
@@ -33,7 +32,12 @@ def adaboost_train(
             # weights_left[k] = 左分區中類別 k 的權重總和
             weights_left = np.zeros(num_classes)
             # 初始時，所有點都在右分區
-            weights_right = np.array([np.sum(sorted_weights[sorted_labels_int == k]) for k in range(num_classes)])
+            weights_right = np.array(
+                [
+                    np.sum(sorted_weights[sorted_labels_int == k])
+                    for k in range(num_classes)
+                ]
+            )
 
             # 3. 線性掃描所有可能的分割點
             for i in range(num_samples - 1):
@@ -45,22 +49,23 @@ def adaboost_train(
 
                 # 如果相鄰的特徵值相同，則它們之間不能作為分割點，跳過
                 val_i = data_train[sorted_indices[i], feature_i]
-                val_i_plus_1 = data_train[sorted_indices[i+1], feature_i]
+                val_i_plus_1 = data_train[sorted_indices[i + 1], feature_i]
                 if val_i == val_i_plus_1:
                     continue
-                
+
                 # 閾值設定在兩個不同值的樣本中間
                 threshold = (val_i + val_i_plus_1) / 2
 
                 # 4. 找到左右分區的最佳預測類別（加權眾數）
                 c_left_idx = np.argmax(weights_left)
                 c_right_idx = np.argmax(weights_right)
-                
+
                 # 5. 計算加權錯誤率
                 # 錯誤率 = (左分區總權重 - 左分區最佳類別的權重) + (右分區總權重 - 右分區最佳類別的權重)
-                error = (np.sum(weights_left) - weights_left[c_left_idx]) + \
-                        (np.sum(weights_right) - weights_right[c_right_idx])
-                
+                error = (np.sum(weights_left) - weights_left[c_left_idx]) + (
+                    np.sum(weights_right) - weights_right[c_right_idx]
+                )
+
                 # 6. 更新最佳決策樁
                 # 在此優化下，'lt' 和 'gt' 兩種不等式會得到相同的最小錯誤率。
                 # 我們統一使用 'lt' 形式儲存，其中 class1 代表小於等於閾值的預測，class2 代表大於的預測。
@@ -69,9 +74,9 @@ def adaboost_train(
                     best_stump = {
                         'feature_index': feature_i,
                         'threshold': threshold,
-                        'inequality': 'lt', # 'lt' is sufficient
+                        'inequality': 'lt',  # 'lt' is sufficient
                         'class1': classes[c_left_idx],
-                        'class2': classes[c_right_idx]
+                        'class2': classes[c_right_idx],
                     }
 
         stump = best_stump
@@ -91,7 +96,7 @@ def adaboost_train(
         predictions = np.empty(num_samples, dtype=object)
         predictions[feature_values <= stump['threshold']] = stump['class1']
         predictions[feature_values > stump['threshold']] = stump['class2']
-        
+
         # 更新樣本權重 D
         matches = (predictions == label_train).astype(float)
         D *= np.power(beta, matches)
@@ -100,7 +105,7 @@ def adaboost_train(
         stumps.append(stump)
         alphas.append(alpha)
 
-        if best_error < 1e-9: # 接近於 0
+        if best_error < 1e-9:  # 接近於 0
             print(f'訓練在第 {m + 1} 輪達到完美分類。')
             break
 

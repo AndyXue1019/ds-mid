@@ -13,6 +13,7 @@ from sklearn.preprocessing import StandardScaler
 from utils.Adaboost import adaboost_predict, adaboost_train
 from utils.Segment import extract_features, merge_segments, segment
 
+ROBOT_NAME = 'turtlebot'
 data_full = []
 label_full = []
 
@@ -84,12 +85,12 @@ def data_label_prepare(bag_file, label_file):
 
 def main():
     global data_full, label_full
-    bag_file = './data/data_{}.bag'
-    label_file = './data/data_{}_label.csv'
+    bag_file = f'./data/{ROBOT_NAME}/data_{{}}.bag'
+    label_file = f'./data/{ROBOT_NAME}/data_{{}}_label.csv'
 
     # 準備訓練資料 (可自訂)
     print('準備資料...')
-    for i in range(1, 4):
+    for i in [1, 2, 3]:
         print(f'處理第 {i} 筆資料...')
         data_label_prepare(bag_file.format(i), label_file.format(i))
 
@@ -105,6 +106,7 @@ def main():
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
 
     accuracies = []
+    bc_accuracies = []
     total_cm = np.zeros((3, 3), dtype=int)
     class_labels = ['B', 'C', 'O']  # Box, Circle, Other
 
@@ -129,14 +131,25 @@ def main():
         acc = accuracy_score(label_test, test_pred)
         accuracies.append(acc)
 
+        bc_indices = np.where((label_test == 'B') | (label_test == 'C'))
+        if len(bc_indices[0]) > 0:
+            bc_acc = accuracy_score(label_test[bc_indices], test_pred[bc_indices])
+        else:
+            bc_acc = 0.0  # 如果測試集中沒有 B 或 C，則準確率為 0
+        bc_accuracies.append(bc_acc)
+
         print(cm)
         print(f'準確率: {acc * 100:.4f}%')
+        print(f'B/C 準確率: {bc_acc * 100:.4f}%')
 
     print('\n=== 整體結果 ===')
     print(total_cm)
     mean_acc = np.mean(accuracies)
     std_acc = np.std(accuracies)
     print(f'平均準確率: {mean_acc * 100:.4f}% (+/- {std_acc * 100:.4f}%)')
+    mean_bc_acc = np.mean(bc_accuracies)
+    std_bc_acc = np.std(bc_accuracies)
+    print(f'平均 B/C 準確率: {mean_bc_acc * 100:.4f}% (+/- {std_bc_acc * 100:.4f}%)')
 
     scaler = StandardScaler()
     data_full_scaled = scaler.fit_transform(data_full)
@@ -144,9 +157,9 @@ def main():
     stumps, alphas = adaboost_train(data_full_scaled, label_full, T=50)
 
     # 儲存訓練好的模型和標準化參數
-    np.savez('./model/adaboost_model.npz', stumps=stumps, alphas=alphas)
-    np.savez('./model/scaler.npz', mean=scaler.mean_, scale=scaler.scale_)
-    print('模型與標準化參數已儲存至 ./model/ 資料夾。')
+    np.savez(f'./model/{ROBOT_NAME}/adaboost_model.npz', stumps=stumps, alphas=alphas)
+    np.savez(f'./model/{ROBOT_NAME}/scaler.npz', mean=scaler.mean_, scale=scaler.scale_)
+    print(f'模型與標準化參數已儲存至 ./model/{ROBOT_NAME}/ 資料夾。')
 
 
 if __name__ == '__main__':

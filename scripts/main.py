@@ -14,7 +14,7 @@ from utils.Adaboost import adaboost_predict
 from utils.KalmanFilter import KalmanFilter as KF
 from utils.Segment import extract_features, merge_segments, segment
 
-
+ROBOT_NAME = 'turtlebot'
 marker_pub = None
 i = 0
 stumps = None
@@ -258,7 +258,9 @@ def main():
     global marker_pub, stumps, alphas, scaler, last_scan_time
     rospy.init_node('ds_mid_node')
 
-    model_path = os.path.join(os.path.dirname(__file__), '../model/adaboost_model.npz')
+    model_path = os.path.join(
+        os.path.dirname(__file__), f'../model/{ROBOT_NAME}/adaboost_model.npz'
+    )
     try:
         model = np.load(model_path, allow_pickle=True)
         stumps = model['stumps']
@@ -268,7 +270,9 @@ def main():
         rospy.logerr(f'找不到模型檔案: {model_path}')
         return
 
-    scaler_path = os.path.join(os.path.dirname(__file__), '../model/scaler.npz')
+    scaler_path = os.path.join(
+        os.path.dirname(__file__), f'../model/{ROBOT_NAME}/scaler.npz'
+    )
     try:
         scaler_data = np.load(scaler_path)
         scaler = StandardScaler()

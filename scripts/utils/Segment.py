@@ -4,6 +4,7 @@ import numpy as np
 from typing import List, Tuple
 
 from sklearn.decomposition import PCA
+from sklearn.neighbors import KDTree
 
 
 def segment(xy: np.ndarray) -> Tuple[List[List[int]], List[int], int]:
@@ -50,11 +51,11 @@ def segment(xy: np.ndarray) -> Tuple[List[List[int]], List[int], int]:
         distance = np.linalg.norm(current_point - prev_point)
 
         if distance < threshold:
-            # --- 距離小於閾值：屬於同一個片段 ---
+            # 距離小於閾值：屬於同一個片段
             # 將當前點的索引加入到最後一個 (也就是當前的) 片段中
             segments[-1].append(current_idx)
         else:
-            # --- 距離大於閾值：開始一個新片段 ---
+            # 距離大於閾值：開始一個新片段
             # 新增一個只包含當前點索引的列表到 segments 中
             segments.append([current_idx])
 
@@ -175,6 +176,44 @@ def merge_segments(
     return current_segments, merged_si_n, merged_s_n
 
 
+def filter_outliers(
+    points: np.ndarray, radius: float = 0.15, min_neighbors: int = 3
+) -> np.ndarray:
+    """
+    使用 KD-Tree 加速的半徑異常點移除法來過濾噪聲點。
+
+    :param points: N x 2 的 NumPy 陣列，代表雷射點的 (x, y) 座標。
+    :param radius: 搜尋鄰居的半徑 (單位：公尺)。
+    :param min_neighbors: 一個點被視為非噪聲點所需的最小鄰居數 (不包含點自身)。
+    :return: 一個 NumPy 陣列，包含被保留下來的點在原始陣列中的索引。
+    """
+    # 僅處理非 (0,0) 的有效點
+    valid_indices = np.where(np.any(points != 0, axis=1))[0]
+    if len(valid_indices) < min_neighbors + 1:
+        return np.array([], dtype=int)
+
+    valid_points = points[valid_indices]
+
+    # 1. 建立 KD-Tree
+    # leaf_size 可以調整，較大的 leaf_size 可能建樹更快，但查詢稍慢
+    tree = KDTree(valid_points, leaf_size=10)
+
+    # 2. 查詢每個點在半徑內的鄰居數量
+    # tree.query_radius 回傳的是每個點的鄰居索引列表
+    # 我們只需要鄰居的數量，所以取其長度
+    # +1 是因為查詢結果會包含點自身，所以 min_neighbors 也要加 1
+    neighbors_count = tree.query_radius(valid_points, r=radius, count_only=True)
+
+    # 3. 找出鄰居數量足夠的點的索引 (相對於 valid_points)
+    # 鄰居數需大於等於 min_neighbors + 1 (因為包含自身)
+    non_outlier_local_indices = np.where(neighbors_count >= min_neighbors + 1)[0]
+
+    # 4. 將局部索引映射回原始 points 陣列的索引
+    original_indices_to_keep = valid_indices[non_outlier_local_indices]
+
+    return original_indices_to_keep
+
+
 def fit_circle(points: np.ndarray) -> Tuple[Tuple[float, float], float]:
     """
     使用最小二乘法擬合一個圓。
@@ -192,7 +231,7 @@ def fit_circle(points: np.ndarray) -> Tuple[Tuple[float, float], float]:
     return (c[0], c[1]), np.sqrt(c[2] + c[0] ** 2 + c[1] ** 2)
 
 
-def extract_features(points) -> list:
+def extract_features(points: np.ndarray) -> list:
     # 特徵 1: 點的數量
     num_points = len(points)
 
