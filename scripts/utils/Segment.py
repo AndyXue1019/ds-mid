@@ -235,7 +235,7 @@ def fit_circle(points: np.ndarray) -> Tuple[Tuple[float, float], float]:
     return (c[0], c[1]), np.sqrt(c[2] + c[0] ** 2 + c[1] ** 2)
 
 
-def extract_features(points) -> list:
+def extract_features(points: np.ndarray) -> list:
     # 特徵 1: 點的數量
     num_points = len(points)
 

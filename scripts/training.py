@@ -11,8 +11,9 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 
 from utils.Adaboost import adaboost_predict, adaboost_train
-from utils.Segment import extract_features, merge_segments, segment
+from utils.Segment import extract_features, filter_outliers, merge_segments, segment
 
+ROBOT_NAME = 'minibot'
 data_full = []
 label_full = []
 
@@ -65,8 +66,11 @@ def data_label_prepare(bag_file, label_file):
         y = ranges * np.sin(angles)
         points = np.vstack((x, y)).T  # N x 2 array
 
-        Seg, _, _ = segment(points)
-        Seg, Si_n, S_n = merge_segments(Seg, points)
+        keep_indices = filter_outliers(points, radius=0.15, min_neighbors=5)
+        filtered_points = points[keep_indices]
+
+        Seg, _, _ = segment(filtered_points)
+        Seg, Si_n, S_n = merge_segments(Seg, filtered_points)
 
         PN = label_segments(t, S_n, label_file)
 
@@ -74,7 +78,10 @@ def data_label_prepare(bag_file, label_file):
         for i in range(S_n):
             if Si_n[i] < 3:
                 continue
-            segment_points = np.array([points[idx] for idx in Seg[i]])
+
+            segment_indices_filtered = Seg[i]
+            orig_indices = keep_indices[segment_indices_filtered]
+            segment_points = points[orig_indices]
 
             features = extract_features(segment_points)
 
@@ -84,12 +91,12 @@ def data_label_prepare(bag_file, label_file):
 
 def main():
     global data_full, label_full
-    bag_file = './data/data_{}.bag'
-    label_file = './data/data_{}_label.csv'
+    bag_file = f'./data/{ROBOT_NAME}/data_{{}}.bag'
+    label_file = f'./data/{ROBOT_NAME}/data_{{}}_label.csv'
 
     # 準備訓練資料 (可自訂)
     print('準備資料...')
-    for i in range(1, 4):
+    for i in range(1, 7):
         print(f'處理第 {i} 筆資料...')
         data_label_prepare(bag_file.format(i), label_file.format(i))
 
@@ -144,9 +151,9 @@ def main():
     stumps, alphas = adaboost_train(data_full_scaled, label_full, T=50)
 
     # 儲存訓練好的模型和標準化參數
-    np.savez('./model/adaboost_model.npz', stumps=stumps, alphas=alphas)
-    np.savez('./model/scaler.npz', mean=scaler.mean_, scale=scaler.scale_)
-    print('模型與標準化參數已儲存至 ./model/ 資料夾。')
+    np.savez(f'./model/{ROBOT_NAME}/adaboost_model.npz', stumps=stumps, alphas=alphas)
+    np.savez(f'./model/{ROBOT_NAME}/scaler.npz', mean=scaler.mean_, scale=scaler.scale_)
+    print(f'模型與標準化參數已儲存至 ./model/{ROBOT_NAME}/ 資料夾。')
 
 
 if __name__ == '__main__':
