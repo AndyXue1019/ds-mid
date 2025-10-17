@@ -1,6 +1,7 @@
 **/__pycache__/
 ruff.toml
 .mypy_cache/
+.idea/
 .vscode/
 test/
 build/
