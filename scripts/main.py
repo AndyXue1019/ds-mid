@@ -5,13 +5,12 @@ import os
 
 import numpy as np
 import rospy
-from geometry_msgs.msg import Point
 from sensor_msgs.msg import LaserScan
 from visualization_msgs.msg import Marker, MarkerArray
 from scipy.optimize import linear_sum_assignment
 from sklearn.preprocessing import StandardScaler
 
-from utils.Adaboost import adaboost_predict, adaboost_predict_proba
+from utils.Adaboost import adaboost_predict_proba
 from utils.BayesFilter import BayesFilter
 from utils.Segment import extract_features, merge_segments, segment
 
@@ -237,7 +236,6 @@ def scan_callback(scan: LaserScan):
     final_segments_to_publish = []
     final_predictions_to_publish = []
     log_output = []
-    class_names = {0: 'Other', 1: 'Ball', 2: 'Box'}
 
     for obj_id, tracker in tracked_objects.items():
         # 從濾波後的信念中找出最可能的類別
@@ -265,7 +263,7 @@ def scan_callback(scan: LaserScan):
             log_output.append(f'(x={obj_x:.2f}, y={obj_y:.2f}, probability={best_class_prob:.4f}, index={best_class_idx})')
 
     if log_output:
-        print('-' * 45)
+        print('-' * 50)
         print('\n'.join(log_output))
     marker_publish(final_segments_to_publish, points, final_predictions_to_publish, scan.header.frame_id)
     
