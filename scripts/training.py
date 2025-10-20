@@ -18,18 +18,6 @@ data_full = []
 label_full = []
 
 
-def load_labels(data_file):
-    ball = []
-    box = []
-    with open(data_file, 'r') as f:
-        reader = csv.reader(f)
-        next(reader)  # 跳過標題列
-        for x, y in reader:
-            ball.append(x)
-            box.append(y)
-    return ball, box
-
-
 def load_bag_data(bag_file) -> List[LaserScan]:
     """
     從 ROS bag 檔案中讀取 LaserScan 資料。
@@ -44,7 +32,14 @@ def load_bag_data(bag_file) -> List[LaserScan]:
 
 
 def label_segments(t, num_segments, data_file):
-    ball, box = load_labels(data_file)
+    ball = []
+    box = []
+    with open(data_file, 'r') as f:
+        reader = csv.reader(f)
+        next(reader)  # 跳過標題列
+        for x, y in reader:
+            ball.append(x)
+            box.append(y)
 
     PN = ['O'] * num_segments  # 預設標籤為 'O' (Other)
     PN[int(box[t])] = 'B'
