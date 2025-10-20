@@ -112,32 +112,51 @@ def adaboost_train(
     return stumps, alphas
 
 
-def adaboost_predict(X: np.ndarray, stumps: list, alphas: list) -> np.ndarray:
+def softmax(x: np.ndarray) -> np.ndarray:
+    """計算 softmax"""
+    e_x = np.exp(x - np.max(x, axis=1, keepdims=True))
+    return e_x / e_x.sum(axis=1, keepdims=True)
+
+
+def adaboost_predict_proba(X: np.ndarray, stumps: list, alphas: list) -> np.ndarray:
+    """
+    使用 Adaboost 進行預測，並回傳每個類別的機率。
+    """
     num_samples = X.shape[0]
     classes = np.unique([s['class1'] for s in stumps] + [s['class2'] for s in stumps])
-    class_votes = {c: np.zeros(num_samples) for c in classes}
+    # 確保 classes 的順序是固定的，例如 [0, 1, 2]
+    classes = sorted(list(classes))
+    class_map = {c: i for i, c in enumerate(classes)}
+    
+    # 初始化每個樣本對每個類別的信心分數
+    scores = np.zeros((num_samples, len(classes)))
 
     for alpha, stump in zip(alphas, stumps):
         feature_index = stump['feature_index']
         threshold = stump['threshold']
-        inequality = stump['inequality']
-        c1 = stump['class1']
-        c2 = stump['class2']
+        
+        # 根據決策樁進行預測
+        preds_c1_mask = X[:, feature_index] <= threshold
+        preds_c2_mask = ~preds_c1_mask
 
-        preds = np.empty(num_samples, dtype=object)
-        if inequality == 'lt':
-            preds[X[:, feature_index] <= threshold] = c1
-            preds[X[:, feature_index] > threshold] = c2
-        else:  # gt
-            preds[X[:, feature_index] > threshold] = c1
-            preds[X[:, feature_index] <= threshold] = c2
+        # 找到 c1 和 c2 在 scores 陣列中的索引
+        c1_idx = class_map[stump['class1']]
+        c2_idx = class_map[stump['class2']]
 
-        for c in classes:
-            class_votes[c] += alpha * (preds == c).astype(float)
+        # 將 alpha 加到對應類別的分數上
+        scores[preds_c1_mask, c1_idx] += alpha
+        scores[preds_c2_mask, c2_idx] += alpha
 
-    # 找出每個樣本得票最高的類別
-    final_preds = np.array(
-        [max(class_votes, key=lambda c: class_votes[c][i]) for i in range(num_samples)]
-    )
+    # 使用 softmax 將分數轉換為機率
+    probabilities = softmax(scores)
+    
+    return probabilities, classes
 
+
+def adaboost_predict(X: np.ndarray, stumps: list, alphas: list) -> np.ndarray:
+    probabilities, classes = adaboost_predict_proba(X, stumps, alphas)
+    # 找出每個樣本機率最高的類別索引
+    max_indices = np.argmax(probabilities, axis=1)
+    # 將索引轉換回原始類別標籤
+    final_preds = np.array(classes)[max_indices]
     return final_preds
