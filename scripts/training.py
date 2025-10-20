@@ -41,9 +41,9 @@ def label_segments(t, num_segments, data_file):
             ball.append(x)
             box.append(y)
 
-    PN = ['O'] * num_segments  # 預設標籤為 'O' (Other)
-    PN[int(box[t])] = 'B'
-    PN[int(ball[t])] = 'C'
+    PN = [0] * num_segments  # 預設標籤為 'O' (Other)
+    PN[int(ball[t])] = 1
+    PN[int(box[t])] = 2
 
     return PN
 
@@ -103,7 +103,7 @@ def main():
     accuracies = []
     bc_accuracies = []
     total_cm = np.zeros((3, 3), dtype=int)
-    class_labels = ['B', 'C', 'O']  # Box, Circle, Other
+    class_labels = [0, 1, 2]  # Other, Ball, Box
 
     for fold, (train_index, test_index) in enumerate(skf.split(data_full, label_full)):
         print(f'\n--- 第 {fold + 1}/{n_splits} 摺 ---')
@@ -126,16 +126,16 @@ def main():
         acc = accuracy_score(label_test, test_pred)
         accuracies.append(acc)
 
-        bc_indices = np.where((label_test == 'B') | (label_test == 'C'))
+        bc_indices = np.where((label_test == 1) | (label_test == 2))
         if len(bc_indices[0]) > 0:
             bc_acc = accuracy_score(label_test[bc_indices], test_pred[bc_indices])
         else:
-            bc_acc = 0.0  # 如果測試集中沒有 B 或 C，則準確率為 0
+            bc_acc = 0.0  # 如果測試集中沒有 1 或 2，則準確率為 0
         bc_accuracies.append(bc_acc)
 
         print(cm)
         print(f'準確率: {acc * 100:.4f}%')
-        print(f'B/C 準確率: {bc_acc * 100:.4f}%')
+        print(f'球/箱 準確率: {bc_acc * 100:.4f}%')
 
     print('\n=== 整體結果 ===')
     print(total_cm)
@@ -144,7 +144,7 @@ def main():
     print(f'平均準確率: {mean_acc * 100:.4f}% (+/- {std_acc * 100:.4f}%)')
     mean_bc_acc = np.mean(bc_accuracies)
     std_bc_acc = np.std(bc_accuracies)
-    print(f'平均 B/C 準確率: {mean_bc_acc * 100:.4f}% (+/- {std_bc_acc * 100:.4f}%)')
+    print(f'平均 球/箱 準確率: {mean_bc_acc * 100:.4f}% (+/- {std_bc_acc * 100:.4f}%)')
 
     scaler = StandardScaler()
     data_full_scaled = scaler.fit_transform(data_full)
@@ -154,7 +154,7 @@ def main():
     # 儲存訓練好的模型和標準化參數
     np.savez(f'./model/{ROBOT_NAME}/adaboost_model.npz', stumps=stumps, alphas=alphas)
     np.savez(f'./model/{ROBOT_NAME}/scaler.npz', mean=scaler.mean_, scale=scaler.scale_)
-    print(f'模型與標準化參數已儲存至 ./model/{ROBOT_NAME}/ 資料夾。')
+    print(f'模型與Scaler已儲存至 ./model/{ROBOT_NAME}/')
 
 
 if __name__ == '__main__':
