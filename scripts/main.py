@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import colorsys
 import os
 
 import numpy as np
@@ -45,18 +44,6 @@ class ObjectTracker:
         self.filter = BayesFilter(initial_observation_proba, ROBOT_NAME)
         self.time_since_update = 0
         self.history = [self.centroid]  # 記錄歷史位置
-
-
-def gen_hsv_colors(i, total):
-    """
-    根據索引生成一個鮮豔的 HSV 顏色，並轉換為 RGB。
-    """
-    hue = float(i) / total
-    saturation = 1.0
-    value = 1.0
-    # colorsys.hsv_to_rgb 回傳的是 0-1 範圍的 float
-    r, g, b = colorsys.hsv_to_rgb(hue, saturation, value)
-    return r, g, b
 
 
 def marker_publish(segments, points, predictions, frame_id):
@@ -308,6 +295,7 @@ def main():
         rospy.loginfo('模型載入成功。')
     except FileNotFoundError:
         rospy.logerr(f'找不到模型檔案: {model_path}')
+        rospy.signal_shutdown('找不到模型檔案')
         return
 
     scaler_path = f'./model/{ROBOT_NAME}/scaler.npz'
@@ -319,6 +307,7 @@ def main():
         rospy.loginfo('Scaler載入成功。')
     except FileNotFoundError:
         rospy.logerr(f'找不到Scaler檔案: {scaler_path}')
+        rospy.signal_shutdown('找不到Scaler檔案')
         return
 
     marker_pub = rospy.Publisher('/object_markers', MarkerArray, queue_size=10)
