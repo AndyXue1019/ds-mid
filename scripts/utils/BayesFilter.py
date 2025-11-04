@@ -40,7 +40,7 @@ class BayesFilter:
     def update(self, z_t_proba: np.ndarray):
         """
         執行一次完整的預測和更新循環。
-        :param z_t_proba: 來自 Adaboost 的觀測機率分佈, e.g., np.array([0.1, 0.8, 0.1])
+        :param z_t_proba: 來自分類器的觀測機率分佈, e.g., np.array([0.1, 0.8, 0.1])
         """
         # 1. 預測步驟
         # bel'(x_t) = T^T * bel(x_{t-1})
