@@ -1,125 +1,219 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import colorsys
+import argparse
+import csv
+import os
 
-import numpy as np
-import rospy
-from geometry_msgs.msg import Point
-from sensor_msgs.msg import LaserScan
-from visualization_msgs.msg import Marker, MarkerArray
+import matplotlib.pyplot as plt
+import rospkg
+from matplotlib.widgets import Button, RadioButtons
 
 from utils.Segment import handle_scan
+from utils.Loader import load_bag_data, load_label
 
-marker_pub = None
-i = 0
+os.chdir(rospkg.RosPack().get_path('ds_mid'))
 
-def gen_hsv_colors(i, total):
-    """
-    根據索引生成一個鮮豔的 HSV 顏色，並轉換為 RGB。
-    """
-    hue = float(i) / total
-    saturation = 1.0
-    value = 1.0
-    # colorsys.hsv_to_rgb 回傳的是 0-1 範圍的 float
-    r, g, b = colorsys.hsv_to_rgb(hue, saturation, value)
-    return r, g, b
+COLOR_BALL = 'red'
+COLOR_BOX = 'blue'
+COLOR_OTHER = 'gray'
 
 
-def marker_publish(segments, num_segments, points, frame_id):
-    marker_array = MarkerArray()
+class LabelingTool:
+    def __init__(self, scan_msgs, label_file):
+        self.scan_msgs = scan_msgs
+        self.label_file = label_file
+        self.labels = self.load_existing_labels()
 
-    clear_marker = Marker()
-    clear_marker.header.frame_id = frame_id
-    clear_marker.header.stamp = rospy.Time.now()
-    clear_marker.action = Marker.DELETEALL
-    marker_array.markers.append(clear_marker)
-    marker_pub.publish(marker_array)
+        self.current_scan_index = 0
+        self.current_label_mode = 'ball'  # 預設標記模式
 
-    marker_array = MarkerArray()
+        self.fig, self.ax = plt.subplots(figsize=(12, 10))
+        plt.subplots_adjust(left=0.25, bottom=0.2)
 
-    for i, seg in enumerate(segments):
-        marker = Marker()
-        marker.header.frame_id = frame_id
-        marker.header.stamp = rospy.Time.now()
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key)
+        self.fig.canvas.mpl_connect('pick_event', self.on_pick)
 
-        marker.ns = 'laser_segments'
-        marker.id = i + 1  # ID 從 1 開始，0 保留給 DELETEALL
+        ax_prev = plt.axes([0.7, 0.05, 0.1, 0.075])
+        ax_next = plt.axes([0.81, 0.05, 0.1, 0.075])
+        ax_save = plt.axes([0.59, 0.05, 0.1, 0.075])
+        self.btn_prev = Button(ax_prev, 'Prev (p)')
+        self.btn_next = Button(ax_next, 'Next (n)')
+        self.btn_save = Button(ax_save, 'Save (s)')
+        self.btn_prev.on_clicked(self.prev_scan)
+        self.btn_next.on_clicked(self.next_scan)
+        self.btn_save.on_clicked(self.save_button_callback)
 
-        marker.type = Marker.POINTS
-        marker.action = Marker.ADD
+        ax_radio = plt.axes([0.05, 0.7, 0.15, 0.15])
+        self.radio_buttons = RadioButtons(ax_radio, ('ball', 'box'))
+        self.radio_buttons.on_clicked(self.set_label_mode)
 
-        # 點的大小
-        marker.scale.x = 0.03
-        marker.scale.y = 0.03
-        marker.scale.z = 0.05 # 不重要
+        print('\n--- 操作說明 ---')
+        print("點擊 'ball' 或 'box' 切換標記模式。")
+        print('點擊畫面中的 Segment 進行標記。')
+        print("按 'n' 或 'p' (或點擊按鈕) 切換畫面。")
+        print("按 's' (或點擊按鈕) 儲存標籤。")
+        print("按 'c' 清除當前畫面的標籤。")
+        print("按 'q' 關閉視窗。")
 
-        # 點的顏色
-        r, g, b = gen_hsv_colors(i, num_segments)
-        marker.color.r = r
-        marker.color.g = g
-        marker.color.b = b
-        marker.color.a = 1.0 # 不透明
+        self.plot_scan()
 
-        marker.points = [
-            Point(points[idx, 0], points[idx, 1], 0)
-            for idx in seg
-        ]
+    def load_existing_labels(self):
+        labels = [{} for _ in self.scan_msgs]
+        if os.path.exists(self.label_file):
+            loaded_labels = load_label(self.label_file)
+            for i, label_dict in enumerate(loaded_labels):
+                labels[i] = label_dict
+        print(f'Loaded existing labels from {self.label_file}')
+        return labels
 
-        marker_array.markers.append(marker)
+    def set_label_mode(self, label):
+        self.current_label_mode = label
+        print(f'Switching label mode to: {label}')
 
-        if seg:
-            seg_points = points[seg]
-            coords = np.mean(seg_points, axis=0)
+    def plot_scan(self):
+        self.ax.clear()
+        scan = self.scan_msgs[self.current_scan_index]
+        Seg, _, S_n, points = handle_scan(scan)
 
-            text_marker = Marker()
-            text_marker.header.frame_id = frame_id
-            text_marker.header.stamp = rospy.Time.now()
+        current_labels = self.labels[self.current_scan_index]
+        ball_seg_idx = current_labels.get('ball', None)
+        box_seg_idx = current_labels.get('box', None)
 
-            text_marker.ns = 'segment_labels'
-            text_marker.id = i + 1
+        for i in range(S_n):
+            seg_points = points[Seg[i]]
 
-            text_marker.type = Marker.TEXT_VIEW_FACING
-            text_marker.action = Marker.ADD
+            if i == ball_seg_idx:
+                color = COLOR_BALL
+            elif i == box_seg_idx:
+                color = COLOR_BOX
+            else:
+                color = COLOR_OTHER
 
-            text_marker.pose.position.x = coords[0]
-            text_marker.pose.position.y = coords[1]
-            text_marker.pose.position.z = 0.2 # 文字稍微抬高
-            text_marker.pose.orientation.w = 1.0 # 無旋轉
+            self.ax.scatter(
+                seg_points[:, 0],
+                seg_points[:, 1],
+                s=5,
+                color=color,
+                label=str(i),
+                picker=True,
+                pickradius=5,
+            )
 
-            text_marker.text = str(i) # 文字內容
-            text_marker.scale.z = 0.2 # 文字高度
+        self.ax.set_aspect('equal')
+        self.ax.set_xlabel('X (m)')
+        self.ax.set_ylabel('Y (m)')
 
-            text_marker.color.r = 1.0
-            text_marker.color.g = 1.0
-            text_marker.color.b = 1.0
-            text_marker.color.a = 1.0 # 不透明
+        title = f'Scan {self.current_scan_index}/{len(self.scan_msgs)}\n'
+        title += f'Ball: {ball_seg_idx if ball_seg_idx is not None else "---"} | '
+        title += f'Box: {box_seg_idx if box_seg_idx is not None else "---"}'
+        self.ax.set_title(title)
 
-            marker_array.markers.append(text_marker)
+        plt.draw()
 
-    if marker_array.markers:
-        marker_pub.publish(marker_array)
+    def on_pick(self, event):
+        artist = event.artist
+        seg_idx_str = artist.get_label()
 
+        try:
+            seg_idx = int(seg_idx_str)
+        except ValueError:
+            return
 
-def scan_callback(scan: LaserScan):
-    global i
-    Seg, _, S_n, filtered_points = handle_scan(scan)
-    rospy.loginfo(f'{i}: Found {S_n} segments.')
+        mode = self.current_label_mode
+        current_labels = self.labels[self.current_scan_index]
 
-    # rviz標記
-    marker_publish(Seg, S_n, filtered_points, scan.header.frame_id)
+        other_mode = 'box' if mode == 'ball' else 'ball'
+        if current_labels.get(other_mode, None) == seg_idx:
+            current_labels.pop(other_mode)
+            print(f'Removed {other_mode} label from segment {seg_idx}')
 
-    i += 1
+        current_labels[mode] = seg_idx
+        print(
+            f'--- Frame {self.current_scan_index}: Labeled segment {seg_idx} as {mode} ---'
+        )
+
+        self.plot_scan()
+
+    def on_key(self, event):
+        if event.key == 'n':
+            self.next_scan(None)
+        elif event.key == 'p':
+            self.prev_scan(None)
+        elif event.key == 's':
+            self.save_labels()
+        elif event.key == 'c':
+            # 清除當前畫面的標籤
+            self.labels[self.current_scan_index].clear()
+            print(f'--- Frame {self.current_scan_index}: Cleared labels ---')
+            self.plot_scan()
+        elif event.key == 'q':
+            plt.close(self.fig)
+
+    def next_scan(self, _):
+        if self.current_scan_index < len(self.scan_msgs) - 1:
+            self.current_scan_index += 1
+            self.plot_scan()
+
+    def prev_scan(self, _):
+        if self.current_scan_index > 0:
+            self.current_scan_index -= 1
+            self.plot_scan()
+
+    def save_button_callback(self, _):
+        self.save_labels()
+
+    def save_labels(self):
+        fieldnames = ['ball', 'box']
+
+        row = []
+        for label_dict in self.labels:
+            if label_dict:
+                row.append(
+                    {
+                        'ball': label_dict.get('ball', ''),
+                        'box': label_dict.get('box', ''),
+                    }
+                )
+
+        try:
+            with open(self.label_file, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(row)
+            print(f'Labels saved to {self.label_file}')
+        except IOError as e:
+            print(f'Error saving labels to {self.label_file}: {e}')
 
 
 def main():
-    global marker_pub
-    rospy.init_node('ds_mid_node')
+    parser = argparse.ArgumentParser(description='Labeling Tool')
+    parser.add_argument(
+        'bag_file', type=str, help='Path to the ROS bag file containing LaserScan data'
+    )
+    parser.add_argument(
+        '-o',
+        '--output',
+        type=str,
+        help='(Optional) Path to save the labeled data (CSV format)',
+    )
+    args = parser.parse_args()
 
-    marker_pub = rospy.Publisher('/laser_segments', MarkerArray, queue_size=10)
+    bag_file_path = args.bag_file
+    if args.output:
+        label_file_path = args.output
+    else:
+        label_file_path = bag_file_path.replace('.bag', '_label.csv')
+    print(f'Bag file to label: {bag_file_path}')
+    print(f'Label file will be saved to: {label_file_path}')
 
-    rospy.Subscriber('/scan', LaserScan, scan_callback)
+    scan_msgs = load_bag_data(bag_file_path)
+    if not scan_msgs:
+        print('No LaserScan messages found in the bag file.')
+        return
 
-    rospy.spin()
+    _ = LabelingTool(scan_msgs, label_file_path)
+    plt.show()
+
 
 if __name__ == '__main__':
     main()
