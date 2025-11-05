@@ -19,16 +19,6 @@ data_full = []
 label_full = []
 
 
-def label_segments(t, num_segments, data_file):
-    labels = load_label(data_file)
-
-    PN = [0] * num_segments  # 預設標籤為 'O' (Other)
-    PN[labels[t]['ball']] = 1
-    PN[labels[t]['box']] = 2
-
-    return PN
-
-
 def data_label_prepare(bag_file, label_file):
     global data_full, label_full
 
