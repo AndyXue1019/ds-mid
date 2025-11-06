@@ -100,6 +100,8 @@ class LabelingTool:
             )
 
         self.ax.set_aspect('equal')
+        self.ax.set_xlim(-5, 5)
+        self.ax.set_ylim(-5, 5)
         self.ax.set_xlabel('X (m)')
         self.ax.set_ylabel('Y (m)')
 
