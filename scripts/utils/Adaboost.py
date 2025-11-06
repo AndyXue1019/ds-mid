@@ -8,6 +8,9 @@ import numpy as np
 def adaboost_train(
     data_train: np.ndarray, label_train: np.ndarray, T: int
 ) -> Tuple[List[Dict], List[float]]:
+    """
+    使用 Adaboost 訓練多個決策樁，回傳決策樁列表及其權重。
+    """
     num_samples, num_features = data_train.shape
     classes, class_map = np.unique(label_train, return_inverse=True)
     num_classes = len(classes)
@@ -156,6 +159,9 @@ def adaboost_predict_proba(X: np.ndarray, stumps: list, alphas: list) -> np.ndar
 
 
 def adaboost_predict(X: np.ndarray, stumps: list, alphas: list) -> np.ndarray:
+    """
+    使用 Adaboost 進行預測，回傳最終的類別標籤。
+    """
     probabilities, classes = adaboost_predict_proba(X, stumps, alphas)
     # 找出每個樣本機率最高的類別索引
     max_indices = np.argmax(probabilities, axis=1)
