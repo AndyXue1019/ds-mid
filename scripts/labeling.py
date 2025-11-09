@@ -79,6 +79,18 @@ class LabelingTool:
         ball_seg_idx = current_labels.get('ball', None)
         box_seg_idx = current_labels.get('box', None)
 
+        if (ball_seg_idx is not None) and (box_seg_idx is None):
+            # 只有 ball，預設切換到 box
+            new_mode_index = 1  # 'box' 的索引是 1
+            self.current_label_mode = 'box'
+        else:
+            # 其他所有情況 (只有 box, 兩個都有, 兩個都無)
+            # 預設都是 'ball'
+            new_mode_index = 0  # 'ball' 的索引是 0
+            self.current_label_mode = 'ball'
+
+        self.radio_buttons.set_active(new_mode_index)
+
         for i in range(S_n):
             seg_points = points[Seg[i]]
 
@@ -92,7 +104,7 @@ class LabelingTool:
             self.ax.scatter(
                 seg_points[:, 0],
                 seg_points[:, 1],
-                s=5,
+                s=1,
                 color=color,
                 label=str(i),
                 picker=True,
