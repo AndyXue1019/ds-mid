@@ -9,14 +9,19 @@ cd ~/catkin_ws/src
 git clone https://github.com/AndyXue1019/ds-mid.git
 ```
 
-### 2. Build and source your catkin workspace:
+### 2. Install the dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Build and source your catkin workspace:
 ```bash
 cd ~/catkin_ws
 catkin_make
 source devel/setup.bash
 ```
 
-### 3. Run the file:
+### 4. Run the file:
 - ### Labeling tool:
     ```bash
     roslaunch ds_mid labeling.launch
